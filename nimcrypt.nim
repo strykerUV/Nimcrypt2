@@ -11,12 +11,16 @@ import nimcrypto
 import nimcrypto/sysrand
 import base64
 import strformat
-import docopt
+# import docopt
 import random
 import sugar
 import strutils
 import osproc
 import os
+import parseopt
+# from strutils import parseInt
+
+
 
 func toByteSeq*(str: string): seq[byte] {.inline.} =
   ## Converts a string to the corresponding byte sequence.
@@ -48,32 +52,44 @@ echo inspiration
 
 #Handle arguments
 
-let doc = """
-Nimcrypt v 2.0
+proc writeVersion() =
+    echo getAppFilename().extractFilename(), "2.1"
 
-Usage:
-  nimcrypt -f file_to_load -t csharp/raw/pe [-o <output>] [-p <process>] [-n] [-u] [-s] [-e] [-g] [-l] [-v] [--no-ppid-spoof]
-  nimcrypt (-h | --help)
+proc writeHelp() = 
+    writeVersion()
+    echo """
+    
+    Usage:
+      nimcrypt -f file_to_load -t csharp/raw/pe [-o <output>] [-p <process>] [-n] [-u] [-s] [-e] [-g] [-l] [-v] [--no-ppid-spoof]
 
-Options:
-  -h --help     Show this screen.
-  --version     Show version.
-  -f --file filename     File to load
-  -t --type filetype     Type of file (csharp, raw, or pe)
-  -p --process process   Name of process for shellcode injection
-  -o --output filename   Filename for compiled exe
-  -u --unhook            Unhook ntdll.dll
-  -v --verbose           Enable verbose messages during execution
-  -e --encrypt-strings   Encrypt strings using the strenc module
-  -g --get-syscallstub   Use GetSyscallStub instead of NimlineWhispers2
-  -l --llvm-obfuscator   Use Obfuscator-LLVM to compile binary
-  -n --no-randomization  Disable syscall name randomization
-  -s --no-sandbox        Disable sandbox checks
-  --no-ppid-spoof        Disable PPID Spoofing
-"""
+    Options:
+      -h, --help              Show this screen.
+      --version               Show version.
+      -f, --file filename     File to load
+      -t, --type filetype     Type of file (csharp, raw, or pe)
+      -p, --process process   Name of process for shellcode injection
+      -o, --output filename   Filename for compiled exe
+      -u, --unhook            Unhook ntdll.dll
+      -v, --verbose           Enable verbose messages during execution
+      -e, --encrypt-strings   Encrypt strings using the strenc module
+      -g, --get-syscallstub   Use GetSyscallStub instead of NimlineWhispers2
+      -l, --llvm-obfuscator   Use Obfuscator-LLVM to compile binary
+      -n, --no-randomization  Disable syscall name randomization
+      -s, --no-sandbox        Disable sandbox checks
+      -z, --no-ppid-spoof     Disable PPID Spoofing
+    """
+    quit()
+
+# let args = docopt(doc, version = "Nimcrypt 2.0")
+# echo "# Program name: ", getAppFilename().extractFilename()
+# echo "# Number of Parameters: ", paramCount()
+
+# for paramIndex in 1 .. paramCount():    
+#     echo "# Raw param: ", paramIndex, ": ", paramStr(paramIndex)
+echo "---"
 
 
-let args = docopt(doc, version = "Nimcrypt 2.0")
+
 
 # Geneate Random Encryption Key
 let chars = {'a'..'z','A'..'Z'}
@@ -92,44 +108,76 @@ var get_syscallstub: bool = false
 var no_sandbox: bool = false
 var no_randomization: bool = false
 var no_ppid_spoof: bool = false
+var argCtr : int
 
-if args["--file"]:
-  filename = $args["--file"]
+for kind, key, value in getOpt():
+    case kind 
 
-if args["--type"]:
-  typename = $args["--type"]
+    of cmdArgument:
+        echo "# Positional argument ", argCtr, ": \"", key, "\""
+        argCtr.inc
 
-if args["--process"]:
-  process = $args["--process"]
+    of cmdLongOption, cmdShortOption:
+        case key 
+        of "q", "version":
+            writeVersion()
+            quit()
+        of "h", "help":
+            writeHelp()
+        of "f", "file":
+            filename = value
+        of "t", "type":
+            typename = value
+        of "p", "process":
+            process = value
+        of "o", "output":
+            outfile = value
+        of "u", "unhook":
+            unhook = true
+        of "e", "encrypt-strings":
+            encrypt_strings = true
+            get_syscallstub = true
+        of "l", "llvm-obfuscator":
+            llvm_obfuscator = true
+        of "g", "get-syscallstub":
+            get_syscallstub = true
+        of "s", "no-sandbox":
+            no_sandbox = true
+        of "n", "no-randomization":
+            no_randomization = true
+        of "z", "no-ppid-spoof":
+            no_ppid_spoof = true
+        of "v", "verbose":
+            verbose = true
+        else:
+            echo "Unknown option: ", key
 
-if args["--unhook"]:
-  unhook = args["--unhook"]
+    of cmdEnd:
+        discard
 
-if args["--encrypt-strings"]:
-  encrypt_strings = args["--encrypt-strings"]
-  get_syscallstub = args["--encrypt-strings"]
+echo "Input File        : ", filename
+echo "Output File       : ", outfile
+echo "Input File Type   : ", typename
+echo "Process Name      : ", process
+echo "Unooking?         : ", unhook
+echo "Verbose?          : ", verbose
+echo "Encryption?       : ", encrypt_strings
+echo "LLVM Obfuscated?  : ", llvm_obfuscator
+echo "Get_SysCallStub?  : ", get_syscallstub
+echo "Sandbox Checking? : ", no_sandbox
+echo "Rando Calrissian? : ", no_randomization
+echo "No PPID Spoof?    : ", no_ppid_spoof
+echo "---"
+while true:
+    write(stdout, "\nShould we continue? (y/n): ")
+    var continueInput = readLine(stdin)
 
-if args["--no-sandbox"]:
-  no_sandbox = args["--no-sandbox"]
-
-if args["--verbose"]:
-  verbose = args["--verbose"]
-
-if args["--llvm-obfuscator"]:
-  llvm_obfuscator = args["--llvm-obfuscator"]
-  get_syscallstub = args["--llvm-obfuscator"]
-
-if args["--get-syscallstub"]:
-  get_syscallstub = args["--get-syscallstub"]
-
-if args["--no-randomization"]:
-  no_randomization = args["--no-randomization"]
-
-if args["--no-ppid-spoof"]:
-  no_ppid_spoof = args["--no-ppid-spoof"]
-
-if args["--output"]:
-  outfile = $args["--output"]
+    if continueInput == "y":
+        break
+    elif continueInput == "n":
+        quit()
+    else:
+        echo "sorry, choice not understood!"
 
 #Read file
 let blob = readFile(filename)
